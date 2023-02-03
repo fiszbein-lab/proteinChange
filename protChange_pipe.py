@@ -36,6 +36,7 @@ print("exon loaded...")
 def getTranscripts(gtf, redExon):
     ind = []
     transID = []
+    geneID = []
     counter = 0
     total = 0
     for n, row in redExon.iterrows():
@@ -48,34 +49,48 @@ def getTranscripts(gtf, redExon):
             if sorted(currExon, key = lambda x:float(x))[::-1][0] > sorted(currExon, key = lambda x:float(x))[::-1][1]:
                 ind.append(np.argmax(currExon))
                 transID.append(gtf[(gtf.geneID == row['geneR']) & (gtf.type == 'exon')]['transcriptID'].iloc[[int(np.argmax(currExon))][0]])
+#                 geneID.append(gtf[(gtf.geneID == row['geneR']) & (gtf.type == 'exon')]['geneID'].iloc[[int(np.argmax(currExon))][0]])
             else:
                 ind.append("None")
                 transID.append("None")
+#                 geneID.append("None")
         else:
             ind.append("None")
             transID.append("None")
+#             geneID.append("None")
     # print(ind)
     redExon[['transcript']] = transID
-    outExons = redExon[(redExon.transcript != "None")].groupby('geneR').filter(lambda x: len(x) > 1)
-
+    outExons = redExon[(redExon.transcript != "None")].groupby('geneR').filter(lambda x: len(x) > 1)    
+    
     tID = []
+#     gID = []
     for x in outExons.transcript:
         if x != "None":
             tID.append(x)
         else:
             tID.append("None")
-    return ind, transID, outExons, tID
+            
+    eiID = []
+    for n, row in outExons.iterrows():
+        if x != "None":
+            eiID.append(row['geneR'] + ";" + row['chr'] + ";" + row['start'] + ";" + row['stop'])
+        else:
+            eiID.append("None")
+    return ind, transID, outExons, tID, eiID
 
 
-def bedify(outExons, tID, gtf, saveBED = True, outname = "toBed"):
-    bed = gtf[(gtf.transcriptID == tID[0]) & (gtf.type == "transcript")][['chr', 'start', 'stop', 'transcriptID', 'strand']]
+
+def bedify(outExons, tID, eiID, gtf, saveBED = True, outname = "toBed"):
+    bed = gtf[(gtf.transcriptID == tID[0]) & (gtf.type == "transcript")][['chr', 'start', 'stop', 'transcriptID', 'geneID', 'strand']]
     for b in tID[1:]:
         if b != "None":
             bed = pd.concat([bed, gtf[(gtf.transcriptID == b) & (gtf.type == "transcript")][['chr', 'start', 'stop', 'transcriptID', 'strand']]])
-
+    bed['eiID'] = eiID
     bed['score'] = 0
+    bed['squish'] = bed['transcriptID'] + ";" + bed['eiID']
+
     bed.rename(
-        columns={"chr": "chrom", "start": "chromStart", "stop": "chromEnd", "transcriptID": "name"},
+        columns={"chr": "chrom", "start": "chromStart", "stop": "chromEnd", "squish": "name"},
         inplace=True,
     )
 
@@ -91,5 +106,5 @@ def bedify(outExons, tID, gtf, saveBED = True, outname = "toBed"):
 
 
 
-ind, transID, outExons, tID = getTranscripts(gtf = gtf, redExon = redExon)
-toBed = bedify(outExons=outExons, tID=tID, gtf=gtf, saveBED = True, outname = outname)
+ind, transID, outExons, tID, eiID = getTranscripts(gtf = gtf, redExon = redExon)
+toBed = bedify(outExons=outExons, tID=tID, eiID=eiID, gtf=gtf, saveBED = True, outname = outname)
